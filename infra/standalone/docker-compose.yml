@@ -1,0 +1,17 @@
+services:
+  nomad-server:
+    build: ../../server
+    restart: on-failure
+    ports:
+      - "3829:3829"
+    environment:
+      NOMAD_DATA_DIR: /data
+      # Point at any Electrum-protocol endpoint (Electrs, Fulcrum, ...).
+      ELECTRS_ADDR: ${ELECTRS_ADDR:-host.docker.internal:50001}
+      # NOSTR_RELAYS: "wss://relay1,wss://relay2"   # optional override
+      # NOMAD_NETWORK: regtest                       # optional
+    volumes:
+      - nomad-data:/data
+
+volumes:
+  nomad-data:

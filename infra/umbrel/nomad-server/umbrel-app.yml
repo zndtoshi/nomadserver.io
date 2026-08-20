@@ -1,0 +1,47 @@
+# Umbrel app manifest for Nomad Server.
+# Canonical source for the Umbrel App Store package. On release this file,
+# docker-compose.yml and data/ are synced to the app-store repo
+# (community store first, then PR to getumbrel/umbrel-apps).
+# Field order and contract follow the official packaging guide.
+#
+# Before submitting to the official store:
+#   - pin the image tag+digest in docker-compose.yml (multi-arch index digest)
+#   - run the umbrel-apps linter: npm run lint:apps -- nomad-server --check-images
+#   - confirm `port` is unique across the store (linter checks this too)
+
+manifestVersion: 1
+id: nomad-server
+category: bitcoin
+name: Nomad Server
+version: "0.1.0"
+tagline: Private wallet-to-node bridge over Nostr
+description: >-
+  Connect your phone wallet to your own node with end-to-end encrypted,
+  sender-hidden Nostr messages — no port forwarding, no VPN, no third
+  party ever seeing your addresses or balances.
+
+
+  Open the app to pair a wallet: show the QR code, scan it with the Nomad
+  wallet, done. The pairing page is protected by your Umbrel login.
+
+
+  Requires the Electrs app (your node serves the data). The server holds
+  no Bitcoin keys and can never move funds.
+releaseNotes: ""
+
+developer: zndtoshi
+website: https://github.com/zndtoshi/nomadserver.io
+dependencies:
+  - electrs
+repo: https://github.com/zndtoshi/nomadserver.io
+support: https://github.com/zndtoshi/nomadserver.io/issues
+
+port: 3829
+gallery: []
+path: ""
+
+defaultUsername: ""
+defaultPassword: ""
+
+submitter: zndtoshi
+submission: ""

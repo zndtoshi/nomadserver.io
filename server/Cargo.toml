@@ -1,0 +1,29 @@
+[package]
+name = "nomad-server"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+description = "Self-hosted Nomad Server: private wallet↔node bridge over Nostr"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+anyhow = "1"
+axum = "0.8"
+base64 = "0.22"
+hex = "0.4"
+hmac = "0.12"
+nostr = { version = "0.45", features = ["os-rng", "nip44", "nip59"] }
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+rand = "0.9"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+subtle = "2"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[dev-dependencies]
+tempfile = "3"

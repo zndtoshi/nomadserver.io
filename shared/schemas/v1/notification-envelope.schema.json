@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nomadserver.io/schemas/v1/notification-envelope.schema.json",
+  "title": "Nomad notification envelope (server → wallet)",
+  "description": "Decrypted rumor content of a gift-wrapped notification (rumor kind 25080). No response is expected. Wallets MUST ignore unknown payload kinds (PROTOCOL.md §5.9).",
+  "type": "object",
+  "required": ["v", "id", "ts", "type", "payload"],
+  "additionalProperties": true,
+  "properties": {
+    "v": { "const": 1 },
+    "id": { "type": "string", "format": "uuid" },
+    "ts": { "type": "integer" },
+    "type": { "const": "notify" },
+    "payload": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "payload": { "properties": { "kind": { "const": "new_tx" } } } } },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["kind", "txid", "addresses"],
+            "properties": {
+              "kind": { "const": "new_tx" },
+              "txid": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+              "addresses": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string", "minLength": 20, "maxLength": 90 },
+                "description": "Subset of the wallet's watched addresses touched by this tx."
+              },
+              "height": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "0 or absent = seen in mempool; > 0 = newly confirmed at this height."
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

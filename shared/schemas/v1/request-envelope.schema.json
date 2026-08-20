@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nomadserver.io/schemas/v1/request-envelope.schema.json",
+  "title": "Nomad request envelope (wallet → server)",
+  "description": "Decrypted rumor content of a gift-wrapped request (rumor kind 25078). See PROTOCOL.md §3 and §5.",
+  "type": "object",
+  "required": ["v", "id", "ts", "type", "payload"],
+  "additionalProperties": true,
+  "properties": {
+    "v": { "const": 1 },
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Random 128-bit UUID v4 from a CSPRNG. Echoed by the response."
+    },
+    "ts": { "type": "integer", "description": "Sender Unix time; informational only." },
+    "type": {
+      "type": "string",
+      "enum": [
+        "pair", "unpair", "ping",
+        "get_balance", "get_utxos", "get_history", "get_transactions",
+        "get_fee_estimates", "broadcast_tx", "watch_addresses"
+      ]
+    },
+    "payload": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "pair" } } },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["proof"],
+            "properties": {
+              "proof": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$",
+                "description": "HMAC-SHA256(key = pairSecret, msg = wallet pubkey hex), hex."
+              },
+              "client": { "type": "string", "maxLength": 100 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "enum": ["unpair", "ping", "get_fee_estimates"] } } },
+      "then": { "properties": { "payload": { "type": "object", "maxProperties": 0 } } }
+    },
+    {
+      "if": { "properties": { "type": { "enum": ["get_balance", "get_utxos"] } } },
+      "then": {
+        "properties": { "payload": { "$ref": "#/$defs/addressQuery" } }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "get_history" } } },
+      "then": {
+        "properties": {
+          "payload": {
+            "allOf": [
+              { "$ref": "#/$defs/addressQuery" },
+              {
+                "type": "object",
+                "properties": {
+                  "limit": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "get_transactions" } } },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["txids"],
+            "properties": {
+              "txids": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 25,
+                "items": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "broadcast_tx" } } },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["txHex"],
+            "properties": {
+              "txHex": {
+                "type": "string",
+                "pattern": "^[0-9a-f]+$",
+                "maxLength": 200000,
+                "description": "Fully signed transaction, hex. ≤ 100 KB."
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "watch_addresses" } } },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["addresses"],
+            "properties": {
+              "addresses": {
+                "type": "array",
+                "maxItems": 5000,
+                "items": { "$ref": "#/$defs/address" },
+                "description": "Replace semantics: this set replaces the wallet's entire watch set. Empty array clears it."
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "address": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 90,
+      "description": "Bitcoin address (bech32/bech32m/base58). Strict validation incl. network happens in code, not schema."
+    },
+    "addressQuery": {
+      "type": "object",
+      "required": ["addresses"],
+      "properties": {
+        "addresses": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/address" }
+        }
+      }
+    }
+  }
+}

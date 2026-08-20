@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nomadserver.io/schemas/v1/response-envelope.schema.json",
+  "title": "Nomad response envelope (server → wallet)",
+  "description": "Decrypted rumor content of a gift-wrapped response (rumor kind 25079). `id` echoes the request id. Exactly one of `result` / `error` is present. See PROTOCOL.md §3, §5, §6.",
+  "type": "object",
+  "required": ["v", "id", "ok"],
+  "additionalProperties": true,
+  "properties": {
+    "v": { "const": 1 },
+    "id": { "type": "string", "format": "uuid" },
+    "ok": { "type": "boolean" },
+    "result": { "type": "object" },
+    "error": { "$ref": "#/$defs/errorBody" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "ok": { "const": true } } },
+      "then": { "required": ["result"], "not": { "required": ["error"] } }
+    },
+    {
+      "if": { "properties": { "ok": { "const": false } } },
+      "then": { "required": ["error"], "not": { "required": ["result"] } }
+    }
+  ],
+  "$defs": {
+    "errorBody": {
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "unsupported_version", "unknown_type", "not_paired", "pairing_failed",
+            "invalid_request", "invalid_tx", "broadcast_failed",
+            "backend_unavailable", "rate_limited", "internal"
+          ]
+        },
+        "message": { "type": "string", "maxLength": 500 }
+      }
+    },
+    "blockAnchor": {
+      "type": "object",
+      "properties": {
+        "height": { "type": "integer", "minimum": 0, "description": "0 = unconfirmed." },
+        "block_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "block_time": { "type": "integer" }
+      },
+      "description": "block_hash/block_time absent iff height = 0."
+    },
+    "tip": {
+      "type": "object",
+      "required": ["height", "hash", "time"],
+      "properties": {
+        "height": { "type": "integer", "minimum": 0 },
+        "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "time": { "type": "integer" }
+      }
+    },
+    "resultByType": {
+      "pair": {
+        "type": "object",
+        "required": ["server"],
+        "properties": { "server": { "type": "string", "maxLength": 100 } }
+      },
+      "unpair": { "type": "object", "maxProperties": 0 },
+      "ping": {
+        "type": "object",
+        "required": ["server", "tip"],
+        "properties": {
+          "server": { "type": "string", "maxLength": 100 },
+          "tip": { "$ref": "#/$defs/tip" }
+        }
+      },
+      "get_balance": {
+        "type": "object",
+        "required": ["confirmed", "unconfirmed"],
+        "properties": {
+          "confirmed": { "type": "integer", "minimum": 0, "description": "satoshis" },
+          "unconfirmed": { "type": "integer", "description": "satoshis; may be negative when unconfirmed spends exceed incoming" }
+        }
+      },
+      "get_utxos": {
+        "type": "object",
+        "required": ["utxos"],
+        "properties": {
+          "utxos": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["txid", "vout", "value", "address", "confirmations"],
+              "properties": {
+                "txid": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+                "vout": { "type": "integer", "minimum": 0 },
+                "value": { "type": "integer", "minimum": 0, "description": "satoshis" },
+                "address": { "type": "string", "minLength": 20, "maxLength": 90 },
+                "confirmations": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      },
+      "get_history": {
+        "type": "object",
+        "required": ["txs"],
+        "properties": {
+          "txs": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                { "$ref": "#/$defs/blockAnchor" },
+                {
+                  "type": "object",
+                  "required": ["txid", "height"],
+                  "properties": {
+                    "txid": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "get_transactions": {
+        "type": "object",
+        "required": ["txs"],
+        "properties": {
+          "txs": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                { "$ref": "#/$defs/blockAnchor" },
+                {
+                  "type": "object",
+                  "required": ["txid", "hex", "height"],
+                  "properties": {
+                    "txid": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+                    "hex": { "type": "string", "pattern": "^[0-9a-f]+$", "maxLength": 200000 }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "get_fee_estimates": {
+        "type": "object",
+        "required": ["fast", "medium", "slow"],
+        "properties": {
+          "fast": { "type": "integer", "minimum": 1, "description": "sat/vB, ~1 block" },
+          "medium": { "type": "integer", "minimum": 1, "description": "sat/vB, ~6 blocks" },
+          "slow": { "type": "integer", "minimum": 1, "description": "sat/vB, ~12 blocks" }
+        }
+      },
+      "broadcast_tx": {
+        "type": "object",
+        "required": ["txid"],
+        "properties": { "txid": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+      },
+      "watch_addresses": {
+        "type": "object",
+        "required": ["watching"],
+        "properties": { "watching": { "type": "integer", "minimum": 0, "maximum": 5000 } }
+      }
+    }
+  }
+}

@@ -1,0 +1,28 @@
+version: "3.7"
+
+# Umbrel app package for Nomad Server.
+# - app_proxy fronts the web UI: manifest `port` is the host-facing proxy
+#   port, APP_PORT is the container's internal listen port. Umbrel auth
+#   stays ENABLED (default) so the pairing QR is behind the Umbrel login.
+# - The electrs dependency provides APP_ELECTRS_NODE_IP / _PORT.
+# - Image must be the multi-arch (amd64+arm64) index digest; set by the
+#   release process, never `latest`.
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: nomad-server_server_1
+      APP_PORT: 3829
+
+  server:
+    image: ghcr.io/zndtoshi/nomad-server:0.1.0@sha256:REPLACE_WITH_MULTIARCH_DIGEST
+    user: "1000:1000"
+    init: true
+    restart: on-failure
+    stop_grace_period: 30s
+    environment:
+      NOMAD_DATA_DIR: /data
+      NOMAD_HTTP_PORT: 3829
+      ELECTRS_ADDR: ${APP_ELECTRS_NODE_IP}:${APP_ELECTRS_NODE_PORT}
+    volumes:
+      - ${APP_DATA_DIR}/data:/data

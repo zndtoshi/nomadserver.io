@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nomadserver.io/schemas/v1/pairing-payload.schema.json",
+  "title": "Nomad pairing payload (QR content)",
+  "description": "Served by the server's LAN-only HTTP UI. Possession of this payload authorizes one pairing (PROTOCOL.md §4).",
+  "type": "object",
+  "required": ["v", "app", "nodePubkey", "relays", "pairSecret", "exp"],
+  "additionalProperties": true,
+  "properties": {
+    "v": { "const": 1 },
+    "app": { "const": "nomad-server" },
+    "nodePubkey": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Server Nostr identity pubkey (secp256k1 x-only, hex)."
+    },
+    "relays": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": {
+        "type": "string",
+        "pattern": "^wss://",
+        "maxLength": 200
+      }
+    },
+    "pairSecret": {
+      "type": "string",
+      "contentEncoding": "base64url",
+      "minLength": 43,
+      "maxLength": 44,
+      "description": "32 random bytes, base64url. Single-use, expires at exp."
+    },
+    "exp": {
+      "type": "integer",
+      "description": "Unix timestamp; ≤ 10 minutes after secret creation."
+    }
+  }
+}
