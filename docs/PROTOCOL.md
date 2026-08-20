@@ -70,8 +70,10 @@ directly to relays.
 Rules:
 
 - The gift wrap SHOULD carry an `expiration` tag (NIP-40) of
-  `created_at + 7 days`; the seal SHOULD carry the same. Relays that honor
-  NIP-40 then retain nothing long-term.
+  `created_at + 9 days` (the wrap's `created_at` is randomized up to 2
+  days in the past, so this is ≈7 days from real send time); the seal
+  SHOULD carry the same. Relays that honor NIP-40 then retain nothing
+  long-term.
 - On receipt: verify the wrap signature, decrypt the wrap, verify the seal
   signature, decrypt the seal, and **check the rumor pubkey equals the seal
   pubkey** (otherwise drop — this is the NIP-17 anti-impersonation rule).
@@ -98,8 +100,18 @@ rather than chat text.
 
 ### 2.3 Subscriptions
 
-- Wallet subscribes: `{kinds: [1059], "#p": [<wallet pubkey>], "since": <last seen>}`
-- Server subscribes: `{kinds: [1059], "#p": [<server pubkey>]}`
+- Wallet subscribes: `{kinds: [1059], "#p": [<wallet pubkey>], "since": <now - 3 days>}`
+- Server subscribes: `{kinds: [1059], "#p": [<server pubkey>], "since": <now - 3 days>}`
+
+The `since` window is a backfill, not a watermark: kind 1059 events are
+stored, and a wrap's `created_at` is randomized up to 2 days in the past,
+so a fixed 3-day window (tweak + margin) both covers the randomization
+and re-delivers messages missed while either side was disconnected.
+Backfilled delivery MUST NOT be treated as fresh: dedupe happens at the
+envelope-id level (§2.4), and response correlation is by envelope `id`
+(§3). Live-only (`limit: 0`) subscriptions are NOT sufficient — a message
+published while the receiver is reconnecting would be lost. Implementations
+SHOULD wait for relay connections to settle before publishing.
 
 A wallet drops any unwrapped message whose seal pubkey is not its paired
 server's — except during pairing (§4), when it expects the server's key
@@ -115,8 +127,8 @@ cheap; failures are discarded silently.
 Replay defense is the envelope `id`, not timestamps (offline delivery means
 legitimate messages can arrive days late):
 
-- Receivers cache seen envelope `id`s for at least **8 days** (gift-wrap
-  expiration + margin) and silently drop duplicates.
+- Receivers cache seen envelope `id`s for at least **10 days** (gift-wrap
+  retention + margin) and silently drop duplicates.
 - All message types are idempotent by design: re-running `get_balance`
   returns the same data; re-broadcasting the same tx is the same tx;
   `watch_addresses` uses replace semantics; `pair` fails on a burned

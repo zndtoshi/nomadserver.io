@@ -78,6 +78,11 @@ Agents must:
 - document trust boundaries
 - treat authentication, authorization, key handling, backup, recovery, and remote access as security-critical
 - stop and request architectural review for material security decisions
+- keep internal operational details out of the repository: personal
+  infrastructure layout, access methods, host/network specifics of the
+  maintainer's environment, and agent-session workflow are internal
+  affairs, not repo content (code, docs, schemas, and generic deployment
+  templates belong in the repo)
 
 ## Cross-component changes
 

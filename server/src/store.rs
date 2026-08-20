@@ -76,6 +76,9 @@ pub struct WatchStore {
     sets: Mutex<BTreeMap<String, Vec<String>>>,
 }
 
+// `replace`/`snapshot` are used by the watch_addresses handler and the
+// watcher (next phases); exercised by unit tests meanwhile.
+#[allow(dead_code)]
 impl WatchStore {
     pub fn load(data_dir: &Path) -> anyhow::Result<Self> {
         let path = data_dir.join(WATCHSETS_FILE);

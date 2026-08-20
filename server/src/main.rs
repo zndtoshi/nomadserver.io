@@ -1,15 +1,19 @@
 //! Nomad Server — private wallet↔node bridge over Nostr.
 //!
-//! Boot order: config → identity → stores → HTTP UI → (transport, watcher
-//! — wired in later phases). See docs/PROTOCOL.md and docs/THREAT_MODEL.md.
+//! Boot order: config → identity → stores → shared state → HTTP UI +
+//! gift-wrap transport (docs/PROTOCOL.md, docs/THREAT_MODEL.md).
 
 mod config;
 mod http;
 mod identity;
 mod pairing;
+mod protocol;
+mod ratelimit;
+mod replay;
 mod store;
+mod transport;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use config::Config;
 
@@ -34,9 +38,28 @@ async fn main() -> anyhow::Result<()> {
     let keys = identity::load_or_create(&config.data_dir)?;
     let server_pubkey = keys.public_key().to_hex();
 
+    let allowlist = Arc::new(store::Allowlist::load(&config.data_dir)?);
+    let watch = Arc::new(store::WatchStore::load(&config.data_dir)?);
+    let pairing = Arc::new(Mutex::new(pairing::PairingManager::new()));
+
+    // Gift-wrap transport: relays, unwrap, authorize, route.
+    let transport = transport::Transport::new(
+        keys,
+        config.relays.clone(),
+        allowlist.clone(),
+        watch,
+        pairing.clone(),
+        replay::ReplayCache::load(&config.data_dir)?,
+    );
+    tokio::spawn(async move {
+        if let Err(e) = transport.run().await {
+            tracing::error!("transport exited: {e}");
+        }
+    });
+
     let state = Arc::new(http::AppState {
-        allowlist: store::Allowlist::load(&config.data_dir)?,
-        pairing: std::sync::Mutex::new(pairing::PairingManager::new()),
+        allowlist,
+        pairing,
         server_pubkey,
         config: config.clone(),
     });

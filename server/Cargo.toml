@@ -13,6 +13,7 @@ base64 = "0.22"
 hex = "0.4"
 hmac = "0.12"
 nostr = { version = "0.45", features = ["os-rng", "nip44", "nip59"] }
+nostr-sdk = "0.45"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 rand = "0.9"
 serde = { version = "1", features = ["derive"] }
@@ -27,3 +28,4 @@ uuid = { version = "1", features = ["v4", "serde"] }
 
 [dev-dependencies]
 tempfile = "3"
+ureq = { version = "3", features = ["json"] }

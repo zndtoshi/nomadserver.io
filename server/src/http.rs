@@ -21,8 +21,8 @@ use crate::store::Allowlist;
 pub struct AppState {
     pub config: Config,
     pub server_pubkey: String,
-    pub pairing: Mutex<PairingManager>,
-    pub allowlist: Allowlist,
+    pub pairing: Arc<Mutex<PairingManager>>,
+    pub allowlist: Arc<Allowlist>,
 }
 
 pub fn router(state: Arc<AppState>) -> Router {

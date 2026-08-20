@@ -55,7 +55,7 @@ later task; this task ends at a server the APK can pair with and query.
 1. [x] Schemas (`shared/schemas/v1/`) + repo build plumbing (Rust workspace)
 2. [x] Server skeleton: config, identity, allowlist/watch-set stores
 3. [x] Pairing (secret, HMAC, QR/SVG HTTP UI)
-4. [ ] Gift-wrap transport + routing + replay/rate limits
+4. [x] Gift-wrap transport + routing + replay/rate limits
 5. [ ] Electrs adapter + all v1 handlers
 6. [ ] Watcher + `notify/new_tx`
 7. [~] Dockerfile + Umbrel manifest + integration test pass
@@ -69,3 +69,11 @@ _Updated as phases complete._
   Android stack decided (native Kotlin + UniFFI). Rust toolchain installed
   for dev user (rustup, stable, minimal profile) — none existed on the box.
   Pins: nostr-sdk 0.45.2, electrum-client 0.25, axum 0.8, bitcoin 0.32.
+- 2026-08-20 (phase 4): Gift-wrap transport live-verified end-to-end on
+  public relays with `examples/pair_client.rs` (wallet-side handshake).
+  Lessons baked into PROTOCOL.md §2.3: stored-kind backfill subscription
+  (since now-3d) + envelope-id dedupe instead of live-only `limit(0)`;
+  wait for relay connections before publishing; pairing secret is
+  memory-only so outstanding QRs die on server restart. Unit tests cover
+  envelope parse, replay cache, rate limiter, routing (pair/unpair/authz),
+  and an offline gift-wrap roundtrip. `cargo test`: 18 passed.
