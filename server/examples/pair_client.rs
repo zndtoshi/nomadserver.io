@@ -53,36 +53,55 @@ impl Wallet {
         let wrap = GiftWrapBuilder::new(self.server_pk, rumor)
             .expiration(WRAP_EXP)
             .finalize(&self.keys)?;
-        self.client.send_event(&wrap).await?;
 
+        // Retry with the SAME envelope id: all message types are idempotent
+        // and the server dedupes by id, so resending after a timeout is
+        // safe (PROTOCOL.md §2.4). The notifications receiver is created
+        // ONCE and kept across attempts — dropping and recreating it would
+        // lose events that arrive in the gap between attempts.
         let mut notifications = self.client.notifications();
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
-        loop {
-            let n = match tokio::time::timeout_at(deadline, notifications.next()).await {
-                Ok(Some(n)) => n,
-                _ => anyhow::bail!("timeout waiting for {msg_type} response"),
+        let mut last_err = anyhow::anyhow!("no attempts");
+        for attempt in 1..=3u8 {
+            self.client.send_event(&wrap).await?;
+            let deadline = tokio::time::Instant::now() + Duration::from_secs(25);
+            let attempt_result = loop {
+                let n = match tokio::time::timeout_at(deadline, notifications.next()).await {
+                    Ok(Some(n)) => n,
+                    _ => break Err(anyhow::anyhow!("timeout")),
+                };
+                let ClientNotification::Event { event, .. } = n else {
+                    continue;
+                };
+                if event.kind != Kind::GiftWrap {
+                    continue;
+                }
+                let Ok(gift) = UnwrappedGift::from_gift_wrap(&self.keys, &event) else {
+                    continue;
+                };
+                if gift.sender != self.server_pk {
+                    continue;
+                }
+                let Ok(resp) = serde_json::from_str::<serde_json::Value>(&gift.rumor.content)
+                else {
+                    continue;
+                };
+                if resp["id"].as_str() != Some(id.as_str()) {
+                    continue; // backfilled response to an older request
+                }
+                if resp["ok"].as_bool() == Some(true) {
+                    break Ok(resp["result"].clone());
+                }
+                break Err(anyhow::anyhow!("{} -> error: {}", msg_type, resp["error"]));
             };
-            let ClientNotification::Event { event, .. } = n else {
-                continue;
-            };
-            if event.kind != Kind::GiftWrap {
-                continue;
+            match attempt_result {
+                Ok(v) => return Ok(v),
+                Err(e) => {
+                    eprintln!("  ({msg_type} attempt {attempt}: {e})");
+                    last_err = e;
+                }
             }
-            let Ok(gift) = UnwrappedGift::from_gift_wrap(&self.keys, &event) else {
-                continue;
-            };
-            if gift.sender != self.server_pk {
-                continue;
-            }
-            let resp: serde_json::Value = serde_json::from_str(&gift.rumor.content)?;
-            if resp["id"].as_str() != Some(id.as_str()) {
-                continue; // backfilled response to an older request
-            }
-            if resp["ok"].as_bool() == Some(true) {
-                return Ok(resp["result"].clone());
-            }
-            anyhow::bail!("{} -> error: {}", msg_type, resp["error"]);
         }
+        Err(last_err)
     }
 }
 

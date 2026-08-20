@@ -57,7 +57,7 @@ later task; this task ends at a server the APK can pair with and query.
 3. [x] Pairing (secret, HMAC, QR/SVG HTTP UI)
 4. [x] Gift-wrap transport + routing + replay/rate limits
 5. [x] Electrs adapter + all v1 handlers
-6. [ ] Watcher + `notify/new_tx`
+6. [x] Watcher + `notify/new_tx`
 7. [~] Dockerfile + Umbrel manifest + integration test pass
 8. [ ] Docs sync, report, READY FOR CODEX REVIEW
 
@@ -87,3 +87,12 @@ _Updated as phases complete._
   unreachable, wine AUTH-walled). rustls ring provider pinned (aws-lc-rs
   pulled in by electrum-client conflicted). Live-data verification
   against the user's node pending (node currently down).
+- 2026-08-20 (phase 6): Watcher done and verified end-to-end with
+  `examples/notify_probe.rs` + mock scenario: pair → watch_addresses →
+  notify/new_tx (mempool height 0) → notify/new_tx (confirmed). Watcher
+  polls watch sets (60 s default, NOMAD_WATCH_INTERVAL_SECS), silent
+  first observation, persisted per-wallet txid→height state, notifies
+  only deltas (new tx, 0→N confirmation); dropped/RBF'd txs silent in v1.
+  pair_client learned idempotent retry with a persistent notification
+  receiver (pattern the wallet needs). Live-data verification deferred:
+  user's node flaky (replacement incoming); ping/tip path verified live.

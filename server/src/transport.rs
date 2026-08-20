@@ -26,7 +26,7 @@ use crate::store::{Allowlist, WatchStore};
 /// NIP-40 expiration on gift wraps: 9 days from the (randomized, up to
 /// 2 days in the past) created_at, i.e. ≥7 days from real send time
 /// (PROTOCOL.md §2.2). Replay cache outlives this (replay.rs).
-const WRAP_EXPIRATION: Duration = Duration::from_secs(9 * 24 * 3600);
+pub const WRAP_EXPIRATION: Duration = Duration::from_secs(9 * 24 * 3600);
 
 pub const SERVER_VERSION: &str = concat!("nomad-server/", env!("CARGO_PKG_VERSION"));
 
@@ -45,6 +45,7 @@ pub struct Transport {
 impl Transport {
     pub fn new(
         keys: Keys,
+        client: Client,
         relays: Vec<String>,
         allowlist: Arc<Allowlist>,
         watch: Arc<WatchStore>,
@@ -54,7 +55,7 @@ impl Transport {
     ) -> Self {
         Self {
             keys,
-            client: Client::new(),
+            client,
             relays,
             allowlist,
             watch,
@@ -261,6 +262,7 @@ mod tests {
         ));
         let t = Transport::new(
             Keys::generate(),
+            Client::new(),
             vec![],
             Arc::new(Allowlist::load(dir.path()).unwrap()),
             watch,

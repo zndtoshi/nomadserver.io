@@ -14,6 +14,7 @@ mod ratelimit;
 mod replay;
 mod store;
 mod transport;
+mod watcher;
 
 use std::sync::{Arc, Mutex};
 
@@ -59,12 +60,17 @@ async fn main() -> anyhow::Result<()> {
         watch.clone(),
     ));
 
+    // One relay-pool client shared by transport (subscribe) and watcher
+    // (publish notifications).
+    let nostr_client = nostr_sdk::prelude::Client::new();
+
     // Gift-wrap transport: relays, unwrap, authorize, route.
     let transport = transport::Transport::new(
-        keys,
+        keys.clone(),
+        nostr_client.clone(),
         config.relays.clone(),
         allowlist.clone(),
-        watch,
+        watch.clone(),
         pairing.clone(),
         replay::ReplayCache::load(&config.data_dir)?,
         handlers,
@@ -74,6 +80,18 @@ async fn main() -> anyhow::Result<()> {
             tracing::error!("transport exited: {e}");
         }
     });
+
+    // Watcher: polls watched addresses, pushes notify/new_tx.
+    let watcher = watcher::Watcher::new(
+        keys,
+        nostr_client,
+        electrs.clone(),
+        config.network,
+        watch,
+        allowlist.clone(),
+        &config.data_dir,
+    )?;
+    tokio::spawn(async move { watcher.run().await });
 
     let state = Arc::new(http::AppState {
         allowlist,

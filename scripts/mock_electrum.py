@@ -26,6 +26,23 @@ UTXOS = [
 ]
 RAW_TX = "0200000001" + "00" * 41 + "6a"  # arbitrary bytes for tx fetch
 
+# Watcher-test scenario: a new tx appears in the mempool at +20s and
+# confirms at +45s. The watcher should emit notify/new_tx twice
+# (height 0, then height 800006).
+NEW_TX = {"height": 0, "tx_hash": "cc" * 32, "fee": 2000}
+
+
+def _scenario():
+    import time
+
+    time.sleep(20)
+    HISTORY.append(NEW_TX)
+    time.sleep(25)
+    NEW_TX["height"] = TIP_HEIGHT + 1
+
+
+threading.Thread(target=_scenario, daemon=True).start()
+
 
 def handle(method, params):
     if method == "server.version":
