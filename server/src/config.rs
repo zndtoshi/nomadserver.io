@@ -8,12 +8,14 @@ use std::path::PathBuf;
 
 /// Default public relays when NOSTR_RELAYS is unset. The wallet adopts the
 /// server's relay set at pairing time, so both sides always agree.
+/// Chosen for measured connect speed and unrestricted gift-wrap (kind
+/// 1059) read/write from a home-network vantage (2026-08).
 pub const DEFAULT_RELAYS: &[&str] = &[
     "wss://relay.damus.io",
     "wss://nos.lol",
-    "wss://relay.nostr.band",
-    "wss://nostr.wine",
-    "wss://relay.snort.social",
+    "wss://nostr.mom",
+    "wss://offchain.pub",
+    "wss://relay.nostr.net",
 ];
 
 pub const DEFAULT_HTTP_PORT: u16 = 3829;

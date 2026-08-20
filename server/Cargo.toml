@@ -10,12 +10,15 @@ license = "MIT OR Apache-2.0"
 anyhow = "1"
 axum = "0.8"
 base64 = "0.22"
+bitcoin = { version = "0.32", features = ["serde"] }
+electrum-client = "0.25"
 hex = "0.4"
 hmac = "0.12"
 nostr = { version = "0.45", features = ["os-rng", "nip44", "nip59"] }
 nostr-sdk = "0.45"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 rand = "0.9"
+rustls = { version = "0.23", features = ["ring"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"

@@ -56,7 +56,7 @@ later task; this task ends at a server the APK can pair with and query.
 2. [x] Server skeleton: config, identity, allowlist/watch-set stores
 3. [x] Pairing (secret, HMAC, QR/SVG HTTP UI)
 4. [x] Gift-wrap transport + routing + replay/rate limits
-5. [ ] Electrs adapter + all v1 handlers
+5. [x] Electrs adapter + all v1 handlers
 6. [ ] Watcher + `notify/new_tx`
 7. [~] Dockerfile + Umbrel manifest + integration test pass
 8. [ ] Docs sync, report, READY FOR CODEX REVIEW
@@ -77,3 +77,13 @@ _Updated as phases complete._
   memory-only so outstanding QRs die on server restart. Unit tests cover
   envelope parse, replay cache, rate limiter, routing (pair/unpair/authz),
   and an offline gift-wrap roundtrip. `cargo test`: 18 passed.
+- 2026-08-20 (phase 5): Electrs adapter (single-flight, 100 ms spacing,
+  15 s cooldown on timeout, per-call timeouts, fresh conn per batch) + all
+  v1 handlers implemented and validated (§7 limits, network-checked
+  addresses). `scripts/mock_electrum.py` added: full pair→ping→balance→
+  utxos→history→fees→watch probe passes end-to-end against the mock
+  (`pair_client <url> <addr>`). Default relay set updated to relays
+  measured reachable + 1059-friendly from a home network (band/snort
+  unreachable, wine AUTH-walled). rustls ring provider pinned (aws-lc-rs
+  pulled in by electrum-client conflicted). Live-data verification
+  against the user's node pending (node currently down).

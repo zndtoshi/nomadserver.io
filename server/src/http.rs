@@ -15,6 +15,7 @@ use axum::{Json, Router};
 use serde::Deserialize;
 
 use crate::config::Config;
+use crate::electrs::Electrs;
 use crate::pairing::{now_secs, PairingManager, PairingPayload};
 use crate::store::Allowlist;
 
@@ -23,6 +24,7 @@ pub struct AppState {
     pub server_pubkey: String,
     pub pairing: Arc<Mutex<PairingManager>>,
     pub allowlist: Arc<Allowlist>,
+    pub electrs: Arc<Electrs>,
 }
 
 pub fn router(state: Arc<AppState>) -> Router {
@@ -31,6 +33,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/pairing", get(pairing_json))
         .route("/qr", get(pairing_qr_svg))
         .route("/health", get(health))
+        .route("/health/electrs", get(health_electrs))
         .route("/revoke", post(revoke_wallet))
         .with_state(state)
 }
@@ -107,6 +110,13 @@ async fn pairing_qr_svg(State(state): State<Arc<AppState>>) -> impl IntoResponse
 
 async fn health() -> &'static str {
     "ok"
+}
+
+async fn health_electrs(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    match state.electrs.preflight().await {
+        Ok(()) => (StatusCode::OK, "ok"),
+        Err(_) => (StatusCode::SERVICE_UNAVAILABLE, "electrs unreachable"),
+    }
 }
 
 #[derive(Deserialize)]

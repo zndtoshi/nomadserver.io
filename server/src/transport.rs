@@ -13,6 +13,7 @@ use std::time::Duration;
 use nostr::nips::nip59::{GiftWrapBuilder, UnwrappedGift};
 use nostr_sdk::prelude::*;
 
+use crate::handlers::Handlers;
 use crate::pairing::{now_secs, PairingManager};
 use crate::protocol::{
     parse_request, ErrorCode, RequestEnvelope, ResponseEnvelope, KIND_REQUEST, KIND_RESPONSE,
@@ -38,6 +39,7 @@ pub struct Transport {
     pairing: Arc<Mutex<PairingManager>>,
     replay: ReplayCache,
     ratelimit: RateLimiter,
+    handlers: Arc<Handlers>,
 }
 
 impl Transport {
@@ -48,6 +50,7 @@ impl Transport {
         watch: Arc<WatchStore>,
         pairing: Arc<Mutex<PairingManager>>,
         replay: ReplayCache,
+        handlers: Arc<Handlers>,
     ) -> Self {
         Self {
             keys,
@@ -58,6 +61,7 @@ impl Transport {
             pairing,
             replay,
             ratelimit: RateLimiter::new(),
+            handlers,
         }
     }
 
@@ -116,7 +120,7 @@ impl Transport {
         }
 
         let response = match parse_request(&gift.rumor.content) {
-            Ok(env) => self.route(&sender, &env),
+            Ok(env) => self.route(&sender, &env).await,
             Err(Some(err_response)) => Some(err_response),
             Err(None) => None,
         };
@@ -130,7 +134,7 @@ impl Transport {
 
     /// Pure routing: returns the response to send, or None to drop.
     /// Unit-tested without any network.
-    fn route(&self, sender_hex: &str, env: &RequestEnvelope) -> Option<ResponseEnvelope> {
+    async fn route(&self, sender_hex: &str, env: &RequestEnvelope) -> Option<ResponseEnvelope> {
         let now = now_secs();
         if !self.replay.check_and_insert(&env.id, now) {
             tracing::debug!(sender = %sender_hex, "dropped replayed envelope id");
@@ -143,10 +147,10 @@ impl Transport {
                 "slow down",
             ));
         }
-        Some(self.dispatch(sender_hex, env, now))
+        Some(self.dispatch(sender_hex, env, now).await)
     }
 
-    fn dispatch(&self, sender_hex: &str, env: &RequestEnvelope, now: u64) -> ResponseEnvelope {
+    async fn dispatch(&self, sender_hex: &str, env: &RequestEnvelope, now: u64) -> ResponseEnvelope {
         // `pair` is the only message type open to non-allowlisted keys.
         if env.msg_type == "pair" {
             return self.handle_pair(sender_hex, env, now);
@@ -156,14 +160,7 @@ impl Transport {
         }
         match env.msg_type.as_str() {
             "unpair" => self.handle_unpair(sender_hex, env),
-            t if KNOWN_TYPES.contains(&t) => {
-                // Chain-data handlers land with the Electrs adapter phase.
-                ResponseEnvelope::err(
-                    &env.id,
-                    ErrorCode::BackendUnavailable,
-                    "chain backend not yet available",
-                )
-            }
+            t if KNOWN_TYPES.contains(&t) => self.handlers.handle(sender_hex, env).await,
             _ => ResponseEnvelope::err(&env.id, ErrorCode::UnknownType, "unknown type"),
         }
     }
@@ -256,13 +253,20 @@ mod tests {
 
     fn setup() -> (Transport, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
+        let watch = Arc::new(WatchStore::load(dir.path()).unwrap());
+        let handlers = Arc::new(Handlers::new(
+            Arc::new(crate::electrs::Electrs::new("127.0.0.1:9")), // instant refusal
+            crate::config::Network::Regtest,
+            watch.clone(),
+        ));
         let t = Transport::new(
             Keys::generate(),
             vec![],
             Arc::new(Allowlist::load(dir.path()).unwrap()),
-            Arc::new(WatchStore::load(dir.path()).unwrap()),
+            watch,
             Arc::new(Mutex::new(PairingManager::new())),
             ReplayCache::load(dir.path()).unwrap(),
+            handlers,
         );
         (t, dir)
     }
@@ -299,61 +303,62 @@ mod tests {
         hex::encode(mac.finalize().into_bytes())
     }
 
-    #[test]
-    fn pair_then_ping_then_unpair() {
+    #[tokio::test]
+    async fn pair_then_ping_then_unpair() {
         let (t, _dir) = setup();
         let wallet = Keys::generate().public_key().to_hex();
 
         // unknown type from stranger: not_paired beats unknown_type
-        let r = t.route(&wallet, &envelope(&uuid(1), "bogus", serde_json::json!({})));
+        let r = t.route(&wallet, &envelope(&uuid(1), "bogus", serde_json::json!({}))).await;
         assert_eq!(r.unwrap().error.unwrap().code, ErrorCode::NotPaired);
 
         // pair with the correct proof
         let proof = make_proof(&t, &wallet);
-        let r = t.route(&wallet, &envelope(&uuid(2), "pair", serde_json::json!({"proof": proof})));
+        let r = t.route(&wallet, &envelope(&uuid(2), "pair", serde_json::json!({"proof": proof}))).await;
         assert!(r.unwrap().ok);
         assert!(t.allowlist.is_paired(&wallet));
 
-        // known-but-not-yet-backed type now passes authz
-        let r = t.route(&wallet, &envelope(&uuid(3), "get_balance", serde_json::json!({"addresses":[]})));
-        assert_eq!(r.unwrap().error.unwrap().code, ErrorCode::BackendUnavailable);
+        // known type passes authz; dummy backend fast-fails
+        let r = t.route(&wallet, &envelope(&uuid(3), "get_balance", serde_json::json!({"addresses":[]}))).await;
+        assert_eq!(r.unwrap().error.unwrap().code, ErrorCode::InvalidRequest);
 
         // unknown type from paired wallet
-        let r = t.route(&wallet, &envelope(&uuid(4), "bogus", serde_json::json!({})));
+        let r = t.route(&wallet, &envelope(&uuid(4), "bogus", serde_json::json!({}))).await;
         assert_eq!(r.unwrap().error.unwrap().code, ErrorCode::UnknownType);
 
         // replayed id is dropped
-        let r = t.route(&wallet, &envelope(&uuid(4), "bogus", serde_json::json!({})));
+        let r = t.route(&wallet, &envelope(&uuid(4), "bogus", serde_json::json!({}))).await;
         assert!(r.is_none());
 
         // unpair works, and a second unpair is not_paired
-        let r = t.route(&wallet, &envelope(&uuid(5), "unpair", serde_json::json!({})));
+        let r = t.route(&wallet, &envelope(&uuid(5), "unpair", serde_json::json!({}))).await;
         assert!(r.unwrap().ok);
-        let r = t.route(&wallet, &envelope(&uuid(6), "unpair", serde_json::json!({})));
+        let r = t.route(&wallet, &envelope(&uuid(6), "unpair", serde_json::json!({}))).await;
         assert_eq!(r.unwrap().error.unwrap().code, ErrorCode::NotPaired);
     }
 
-    #[test]
-    fn pair_rejects_bad_proof_and_second_pairing() {
+    #[tokio::test]
+    async fn pair_rejects_bad_proof_and_second_pairing() {
         let (t, _dir) = setup();
         let wallet = Keys::generate().public_key().to_hex();
         let r = t.route(
             &wallet,
             &envelope(&uuid(1), "pair", serde_json::json!({"proof": "00"})),
-        );
+        ).await;
         assert_eq!(r.unwrap().error.unwrap().code, ErrorCode::PairingFailed);
         assert!(!t.allowlist.is_paired(&wallet));
 
         let proof = make_proof(&t, &wallet);
         assert!(t
             .route(&wallet, &envelope(&uuid(2), "pair", serde_json::json!({"proof": proof})))
+            .await
             .unwrap()
             .ok);
         // already paired: rejected even with a fresh-looking attempt
         let r = t.route(
             &wallet,
             &envelope(&uuid(3), "pair", serde_json::json!({"proof": "00"})),
-        );
+        ).await;
         assert_eq!(r.unwrap().error.unwrap().code, ErrorCode::PairingFailed);
     }
 

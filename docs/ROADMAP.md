@@ -60,3 +60,7 @@ notified on new transactions. No seed, no signing.
 - Multi-server pairing; optional private/self-hosted relay
 - Optional public-Esplora fallback mode (explicit user choice)
 - Watch-only companion clients via the open protocol
+- v2 wallet: **miniscript** for transaction constructions (vault and
+  inheritance spending paths with timelocks/emergency clauses) — pairs
+  with the server-side presigned-tx custody + trigger engine; BDK's
+  miniscript support is the reference implementation

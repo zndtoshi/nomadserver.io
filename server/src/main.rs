@@ -4,6 +4,8 @@
 //! gift-wrap transport (docs/PROTOCOL.md, docs/THREAT_MODEL.md).
 
 mod config;
+mod electrs;
+mod handlers;
 mod http;
 mod identity;
 mod pairing;
@@ -19,6 +21,13 @@ use config::Config;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Both rustls backends (ring via nostr-sdk, aws-lc-rs via
+    // electrum-client) are in the tree; pick ring explicitly or rustls
+    // panics on first TLS handshake.
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("install rustls ring provider");
+
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -42,6 +51,14 @@ async fn main() -> anyhow::Result<()> {
     let watch = Arc::new(store::WatchStore::load(&config.data_dir)?);
     let pairing = Arc::new(Mutex::new(pairing::PairingManager::new()));
 
+    // Chain backend (Electrs) + protocol handlers.
+    let electrs = Arc::new(electrs::Electrs::new(&config.electrs_addr));
+    let handlers = Arc::new(handlers::Handlers::new(
+        electrs.clone(),
+        config.network,
+        watch.clone(),
+    ));
+
     // Gift-wrap transport: relays, unwrap, authorize, route.
     let transport = transport::Transport::new(
         keys,
@@ -50,6 +67,7 @@ async fn main() -> anyhow::Result<()> {
         watch,
         pairing.clone(),
         replay::ReplayCache::load(&config.data_dir)?,
+        handlers,
     );
     tokio::spawn(async move {
         if let Err(e) = transport.run().await {
@@ -62,6 +80,7 @@ async fn main() -> anyhow::Result<()> {
         pairing,
         server_pubkey,
         config: config.clone(),
+        electrs,
     });
 
     let addr = format!("0.0.0.0:{}", config.http_port);
