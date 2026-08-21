@@ -46,6 +46,9 @@ Pinned dependency coordinates:
 - `org.bitcoindevkit:bdk-android:3.0.0` (bdk_wallet 3.x core)
 - AGP 8.13.2, Kotlin 2.3.21, Compose BOM 2025.10.00 (newer BOMs require
   AGP 9 — do not bump blindly)
+- CameraX 1.4.2 + `com.google.mlkit:barcode-scanning:17.3.0` (pairing QR
+  scan; bundled model, no Play Services dependency; CameraX held at 1.4.x
+  because 1.6.x requires compileSdk 36)
 
 ## Protocol
 

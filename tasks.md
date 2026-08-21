@@ -10,8 +10,8 @@ feature-complete and checkpointed through `1efb34b`).
 
 A native Android APK (Kotlin + UniFFI bindings) that:
 
-1. Pairs with a Nomad Server by pasting the pairing JSON (QR camera scan
-   in a later iteration) — PROTOCOL.md §4 handshake.
+1. Pairs with a Nomad Server by scanning the pairing QR or pasting the
+   pairing JSON — PROTOCOL.md §4 handshake.
 2. Accepts a single address or an xpub/ypub/zpub as a watch target;
    derives address lists locally (BDK descriptors; server stays dumb).
 3. Shows confirmed/unconfirmed balance and recent history, synced

@@ -1,5 +1,9 @@
 package io.nomadserver.wallet
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,8 +30,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import io.nomadserver.wallet.pairing.QrScanner
 import io.nomadserver.wallet.watch.WatchTarget
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -46,6 +53,12 @@ fun AppRoot(vm: MainViewModel) {
 @Composable
 fun PairScreen(ui: UiState, vm: MainViewModel) {
     var payload by remember { mutableStateOf("") }
+    var scanning by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val cameraPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted -> scanning = granted }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -55,10 +68,39 @@ fun PairScreen(ui: UiState, vm: MainViewModel) {
     ) {
         Text("Pair with your server", style = MaterialTheme.typography.headlineSmall)
         Text(
-            "Open the Nomad Server page on your LAN, copy the pairing JSON, and paste it here. " +
-                "QR scanning lands in the next iteration.",
+            "Open the Nomad Server page on your LAN and scan the pairing QR, " +
+                "or paste the pairing JSON below.",
             style = MaterialTheme.typography.bodyMedium,
         )
+        if (scanning) {
+            QrScanner(
+                onCode = { code ->
+                    scanning = false
+                    vm.pair(code)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(320.dp),
+            )
+            TextButton(onClick = { scanning = false }) { Text("Cancel scan") }
+        } else {
+            OutlinedButton(
+                onClick = {
+                    val granted = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.CAMERA,
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (granted) {
+                        scanning = true
+                    } else {
+                        cameraPermission.launch(Manifest.permission.CAMERA)
+                    }
+                },
+                enabled = !ui.busy,
+            ) {
+                Text("Scan pairing QR")
+            }
+        }
         OutlinedTextField(
             value = payload,
             onValueChange = { payload = it },
